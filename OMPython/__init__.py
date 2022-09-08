@@ -63,7 +63,8 @@ if sys.platform == 'darwin':
     sys.path.append('/opt/openmodelica/lib/python2.7/site-packages/')
 
 # TODO: replace this with the new parser
-from OMPython import OMTypedParser, OMParser
+# from OMPython import OMTypedParser, OMParser
+from . import OMTypedParser, OMParser
 
 __license__ = """
  This file is part of OpenModelica.
@@ -206,11 +207,8 @@ class OMCSessionBase(with_metaclass(abc.ABCMeta, object)):
             my_env["PATH"] = omhome_bin + os.pathsep + my_env["PATH"]
             self._omc_process = subprocess.Popen(self._omc_command, stdout=self._omc_log_file, stderr=self._omc_log_file, env=my_env)
         else:
-            # set the user environment variable so omc running from wsgi has the same user as OMPython
-            my_env = os.environ.copy()
-            my_env["USER"] = self._currentUser
             # Because we spawned a shell, and we need to be able to kill OMC, create a new process group for this
-            self._omc_process = subprocess.Popen(self._omc_command, shell=True, stdout=self._omc_log_file, stderr=self._omc_log_file, env=my_env, preexec_fn=os.setsid)
+            self._omc_process = subprocess.Popen(self._omc_command, shell=True, stdout=self._omc_log_file, stderr=self._omc_log_file, preexec_fn=os.setsid)
         if self._docker:
           for i in range(0,40):
             try:
@@ -788,7 +786,7 @@ class OMCSessionZMQ(OMCSessionHelper, OMCSessionBase):
 
 
 class ModelicaSystem(object):
-    def __init__(self, fileName=None, modelName=None, lmodel=[], useCorba=False, commandLineOptions=None, variableFilter=None):  # 1
+    def __init__(self, fileName=None, modelName=None, lmodel=[], useCorba=False, commandLineOptions=None, variableFilter=None, xmlFileName=None):  # 1
         """
         "constructor"
         It initializes to load file and build a model, generating object, exe, xml, mat, and json files. etc. It can be called :
@@ -826,10 +824,13 @@ class ModelicaSystem(object):
         self.linearoutputs = []  # linearization output list
         self.linearstates = []  # linearization  states list
 
-        if useCorba:
-            self.getconn = OMCSession()
+        if xmlFileName is None:
+            if useCorba:
+                self.getconn = OMCSession()
+            else:
+                self.getconn = OMCSessionZMQ()
         else:
-            self.getconn = OMCSessionZMQ()
+            self.getconn = None
 
         ## set commandLineOptions if provided by users
         if commandLineOptions is not None:
@@ -837,6 +838,7 @@ class ModelicaSystem(object):
             self.getconn.sendExpression(exp)
 
         self.xmlFile = None
+        self.xmlFileName = xmlFileName
         self.lmodel = lmodel  # may be needed if model is derived from other model
         self.modelName = modelName  # Model class name
         self.fileName = fileName  # Model file/package name
@@ -920,7 +922,11 @@ class ModelicaSystem(object):
                     print("| info | loadLibrary() failed, Unknown type detected: ", element , " is of type ",  type(element), ", The following patterns are supported\n1)[\"Modelica\"]\n2)[(\"Modelica\",\"3.2.3\"), \"PowerSystems\"]\n")
                 if loadmodelError:
                     print(loadmodelError)
-        self.buildModel()
+        if self.xmlFileName is None:
+            self.buildModel()
+        else:
+            self.xmlFile = self.xmlFileName
+            self.xmlparse()
 
     def buildModel(self, variableFilter=None):
         if variableFilter is not None:
@@ -929,15 +935,13 @@ class ModelicaSystem(object):
         if self.variableFilter is not None:
             varFilter = "variableFilter=" + "\"" + self.variableFilter + "\""
         else:
-            varFilter = "variableFilter=" +  "\".*""\""
-        # print(varFilter)
+            varFilter = "variableFilter=" + "\".*""\""
+
         # buildModelResult=self.getconn.sendExpression("buildModel("+ mName +")")
         buildModelResult = self.requestApi("buildModel", self.modelName, properties=varFilter)
         buildModelError = self.requestApi("getErrorString")
-        # Issue #145. Always print the getErrorString since it might contains build warnings.
-        if buildModelError:
-            print(buildModelError)
         if ('' in buildModelResult):
+            print(buildModelError)
             return
         self.xmlFile=os.path.join(os.path.dirname(buildModelResult[0]),buildModelResult[1]).replace("\\","/")
         self.xmlparse()
@@ -1212,13 +1216,27 @@ class ModelicaSystem(object):
             return ([self.optimizeOptions.get(x,"NotExist") for x in names])
 
     # to simulate or re-simulate model
-    def simulate(self,resultfile=None,simflags=None):  # 11
+    def simulate(self,resultfile=None,simflags=None,overrideaux=None):  # 11
         """
         This method simulates model according to the simulation options.
+
+        Parameters
+        ----------
+        resultfile : str or None
+            Output file name
+
+        simflags : str or None
+            Other simulation options not '-override' parameters
+
+        overrideaux : str or None
+            Specify 'outputFormat' and 'variableFilter
+
         usage
+        -----
         >>> simulate()
         >>> simulate(resultfile="a.mat")
         >>> simulate(simflags="-noEventEmit -noRestart -override=e=0.3,g=10) set runtime simulation flags
+        >>> simulate(simflags="-noEventEmit -noRestart" ,overrideaux="outputFormat=csv,variableFilter=.*") 
         """
         if(resultfile is None):
             r=""
@@ -1240,6 +1258,12 @@ class ModelicaSystem(object):
             override =" -override=" + values1
         else:
             override =""
+        # add override flags not parameters or simulation options
+        if overrideaux:
+            if override:
+                override = override + "," + overrideaux
+            else:
+                override = " -override=" + overrideaux
 
         if (self.inputFlag):  # if model has input quantities
             for i in self.inputlist:
@@ -1256,16 +1280,21 @@ class ModelicaSystem(object):
                 if val[0][0] < float(self.simulateOptions["startTime"]):
                     print('Input time value is less than simulation startTime for inputs', i)
                     return
-            self.__simInput()  # create csv file
+            # self.__simInput()  # create csv file  # commented by Joerg
             csvinput=" -csvInput=" + self.csvFile
         else:
             csvinput=""
+
+        if self.xmlFileName is not None:
+            cwd_current = os.getcwd()
+            os.chdir(os.path.join(os.path.dirname(self.xmlFileName)))
 
         if (platform.system() == "Windows"):
             getExeFile = os.path.join(os.getcwd(), '{}.{}'.format(self.modelName, "exe")).replace("\\", "/")
         else:
             getExeFile = os.path.join(os.getcwd(), self.modelName).replace("\\", "/")
 
+        out = None
         if (os.path.exists(getExeFile)):
             cmd = getExeFile + override + csvinput + r + simflags
             #print(cmd)
@@ -1278,11 +1307,19 @@ class ModelicaSystem(object):
                 p.wait()
                 p.terminate()
             else:
-                os.system(cmd)
+                # os.system(cmd)  # Original code
+                # p = subprocess.Popen([cmd], stdout=subprocess.PIPE)
+                print(str(cmd))
+                p = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                # p = subprocess.run([getExeFile, r], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                out = p.stdout # .read()
             self.simulationFlag = True
+            if self.xmlFileName is not None:
+                os.chdir(cwd_current)
 
         else:
             raise Exception("Error: application file not generated yet")
+        return out
 
 
     # to extract simulation results
