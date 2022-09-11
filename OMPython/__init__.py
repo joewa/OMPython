@@ -63,7 +63,6 @@ if sys.platform == 'darwin':
     sys.path.append('/opt/openmodelica/lib/python2.7/site-packages/')
 
 # TODO: replace this with the new parser
-# from OMPython import OMTypedParser, OMParser
 from . import OMTypedParser, OMParser
 
 __license__ = """
@@ -207,8 +206,11 @@ class OMCSessionBase(with_metaclass(abc.ABCMeta, object)):
             my_env["PATH"] = omhome_bin + os.pathsep + my_env["PATH"]
             self._omc_process = subprocess.Popen(self._omc_command, stdout=self._omc_log_file, stderr=self._omc_log_file, env=my_env)
         else:
+            # set the user environment variable so omc running from wsgi has the same user as OMPython
+            my_env = os.environ.copy()
+            my_env["USER"] = self._currentUser
             # Because we spawned a shell, and we need to be able to kill OMC, create a new process group for this
-            self._omc_process = subprocess.Popen(self._omc_command, shell=True, stdout=self._omc_log_file, stderr=self._omc_log_file, preexec_fn=os.setsid)
+            self._omc_process = subprocess.Popen(self._omc_command, shell=True, stdout=self._omc_log_file, stderr=self._omc_log_file, env=my_env, preexec_fn=os.setsid)
         if self._docker:
           for i in range(0,40):
             try:
@@ -940,8 +942,10 @@ class ModelicaSystem(object):
         # buildModelResult=self.getconn.sendExpression("buildModel("+ mName +")")
         buildModelResult = self.requestApi("buildModel", self.modelName, properties=varFilter)
         buildModelError = self.requestApi("getErrorString")
-        if ('' in buildModelResult):
+        # Issue #145. Always print the getErrorString since it might contains build warnings.
+        if buildModelError:
             print(buildModelError)
+        if ('' in buildModelResult):
             return
         self.xmlFile=os.path.join(os.path.dirname(buildModelResult[0]),buildModelResult[1]).replace("\\","/")
         self.xmlparse()
