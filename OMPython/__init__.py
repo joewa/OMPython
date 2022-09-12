@@ -792,9 +792,19 @@ class ModelicaSystem(object):
         """
         "constructor"
         It initializes to load file and build a model, generating object, exe, xml, mat, and json files. etc. It can be called :
-            •without any arguments: In this case it neither loads a file nor build a model. This is useful when a FMU needed to convert to Modelica model
-            •with two arguments as file name with ".mo" extension and the model name respectively
-            •with three arguments, the first and second are file name and model name respectively and the third arguments is Modelica standard library to load a model, which is common in such models where the model is based on the standard library. For example, here is a model named "dcmotor.mo" below table 4-2, which is located in the directory of OpenModelica at "C:\\OpenModelica1.9.4-dev.beta2\\share\\doc\\omc\\testmodels".
+            - without any arguments: In this case it neither loads a file nor build a model.
+              This is useful when a FMU needed to convert to Modelica model
+            - with two arguments as file name with ".mo" extension and the model name respectively
+            - with three arguments, the first and second are file name and model name respectively and the third arguments
+              is Modelica standard library to load a model, which is common in such models where the model is based on
+              the standard library. For example, here is a model named "dcmotor.mo" below table 4-2, which is located in the
+              directory of OpenModelica at "C:\\OpenModelica1.9.4-dev.beta2\\share\\doc\\omc\\testmodels".
+            - with two or three arguments and varableFilter to pick the list of variables that will be written by default when
+              calling simulate() as csv-string.
+              Another option to achieve the same, is using the overrideaux when calling simulate()
+            - with two or three arguments and xmlFileName to instantiate the model only and skip buildModel.
+              xmlFileName points to modelname_init.xml of a model that has been already built, e.g. by instantiating ModelicaSystem
+              without xmlFilename or .mos file.
         Note: If the model file is not in the current working directory, then the path where file is located must be included together with file name. Besides, if the Modelica model contains several different models within the same package, then in order to build the specific model, in second argument, user must put the package name with dot(.) followed by specific model name.
         ex: myModel = ModelicaSystem("ModelicaModel.mo", "modelName")
         """
