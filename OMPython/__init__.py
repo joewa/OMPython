@@ -1326,10 +1326,11 @@ class ModelicaSystem(object):
                 # print(str(cmd))
                 try:  # Python 3
                     p = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                    out = p.stdout # .read()
                 except:  # Python 2
-                    p = subprocess.call(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                    os.system(cmd)
+                    out = ''
                 # p = subprocess.run([getExeFile, r], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                out = p.stdout # .read()
             self.simulationFlag = True
             if self.xmlFileName is not None:
                 os.chdir(cwd_current)
