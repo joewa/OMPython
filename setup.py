@@ -49,7 +49,7 @@ try:
 except ImportError:
     hasomniidl = False
 
-OMPython_packages = ['OMPython', 'OMPython.OMParser']
+OMPython_packages = ['OMPython']
 if hasomniidl:
     OMPython_packages.extend(['OMPythonIDL', 'OMPythonIDL._OMCIDL', 'OMPythonIDL._OMCIDL__POA'])
 
