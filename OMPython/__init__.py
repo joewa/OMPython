@@ -1,46 +1,78 @@
 # -*- coding: utf-8 -*-
 """
 OMPython is a Python interface to OpenModelica.
-To get started, create an OMCSessionZMQ object:
-from OMPython import OMCSessionZMQ
-omc = OMCSessionZMQ()
+To get started on a local OMC server, create an OMCSessionLocal object:
+
+```
+import OMPython
+omc = OMPython.OMCSessionLocal()
 omc.sendExpression("command")
+```
+
 """
 
+from OMPython.ModelExecution import (
+    ModelExecutionCmd,
+    ModelExecutionData,
+    ModelExecutionException,
+)
 from OMPython.ModelicaSystem import (
-    LinearizationResult,
     ModelicaSystem,
-    ModelicaSystemCmd,
-    ModelicaSystemDoE,
+)
+from OMPython.ModelicaSystemBase import (
+    LinearizationResult,
+    ModelicaSystemBase,
     ModelicaSystemError,
 )
+from OMPython.ModelicaSystemDoE import (
+    ModelicaSystemDoE,
+)
+from OMPython.ModelicaSystemRunner import (
+    ModelicaSystemRunner,
+)
 from OMPython.OMCSession import (
-    OMCSessionCmd,
     OMCSessionException,
-    OMCSessionRunData,
+
     OMCSessionZMQ,
-    OMCSessionPort,
-    OMCSessionLocal,
+
+    OMCPath,
+    OMCPathDummy,
+
+    OMCSession,
     OMCSessionDocker,
     OMCSessionDockerContainer,
+    OMCSessionDummy,
+    OMCSessionLocal,
+    OMCSessionPort,
     OMCSessionWSL,
 )
 
 # global names imported if import 'from OMPython import *' is used
 __all__ = [
     'LinearizationResult',
+
+    'ModelicaSystemBase',
     'ModelicaSystem',
-    'ModelicaSystemCmd',
     'ModelicaSystemDoE',
     'ModelicaSystemError',
+    'ModelicaSystemRunner',
 
-    'OMCSessionCmd',
+    'ModelExecutionCmd',
+    'ModelExecutionData',
+    'ModelExecutionException',
+
     'OMCSessionException',
-    'OMCSessionRunData',
+
     'OMCSessionZMQ',
-    'OMCSessionPort',
-    'OMCSessionLocal',
+
+    'OMCPath',
+    'OMCPathDummy',
+
+    'OMCSession',
     'OMCSessionDocker',
     'OMCSessionDockerContainer',
+    'OMCSessionDummy',
+    'OMCSessionLocal',
+    'OMCSessionPort',
     'OMCSessionWSL',
 ]

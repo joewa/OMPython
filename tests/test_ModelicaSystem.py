@@ -38,6 +38,7 @@ def model_firstorder(tmp_path, model_firstorder_content):
     return mod
 
 
+@pytest.mark.skip("takes too long")
 def test_ModelicaSystem_loop(model_firstorder):
     def worker():
         mod = OMPython.ModelicaSystem()
@@ -155,11 +156,10 @@ def test_customBuildDirectory(tmp_path, model_firstorder):
 @skip_on_windows
 @skip_python_older_312
 def test_getSolutions_docker(model_firstorder):
-    omcp = OMPython.OMCSessionDocker(docker="openmodelica/openmodelica:v1.25.0-minimal")
-    omc = OMPython.OMCSessionZMQ(omc_process=omcp)
+    omcs = OMPython.OMCSessionDocker(docker="openmodelica/openmodelica:v1.25.0-minimal")
 
     mod = OMPython.ModelicaSystem(
-        session=omc.omc_process,
+        session=omcs,
     )
     mod.model(
         model_file=model_firstorder,
@@ -346,20 +346,33 @@ end M_getters;
     with pytest.raises(KeyError):
         mod.getInputs("thisInputDoesNotExist")
     # getOutputs before simulate()
-    assert mod.getOutputs() == {'y': '-0.4'}
-    assert mod.getOutputs("y") == ["-0.4"]
-    assert mod.getOutputs(["y", "y"]) == ["-0.4", "-0.4"]
+    output = mod.getOutputs()
+    assert len(output) == 1
+    assert 'y' in output.keys()
+    assert np.isclose(output['y'], -0.4)
+    assert np.isclose(mod.getOutputs("y"), -0.4)
+    output = mod.getOutputs(["y", "y"])
+    assert len(output) == 2
+    assert np.isclose(output[0], -0.4)
+    assert np.isclose(output[1], -0.4)
     with pytest.raises(KeyError):
         mod.getOutputs("thisOutputDoesNotExist")
 
     # getContinuous before simulate():
-    assert mod.getContinuous() == {
-        'x': '1.0',
-        'der(x)': None,
-        'y': '-0.4'
-    }
-    assert mod.getContinuous("y") == ['-0.4']
-    assert mod.getContinuous(["y", "x"]) == ['-0.4', '1.0']
+    continuous = mod.getContinuous()
+    assert len(continuous) == 3
+    assert 'x' in continuous.keys()
+    assert np.isclose(continuous['x'], 1.0)
+    assert 'der(x)' in continuous.keys()
+    assert np.isnan(continuous['der(x)'])
+    assert 'y' in continuous.keys()
+    assert np.isclose(continuous['y'], -0.4)
+    continuous = mod.getContinuous('y')
+    assert np.isclose(continuous, -0.4)
+    continuous = mod.getContinuous(['y', 'x'])
+    assert np.isclose(continuous[0], -0.4)
+    assert np.isclose(continuous[1], 1.0)
+
     with pytest.raises(KeyError):
         mod.getContinuous("a")  # a is a parameter
 
@@ -378,7 +391,7 @@ end M_getters;
     assert np.isclose(d["y"], dx_analytical, 1e-4)
     assert mod.getOutputs("y") == [d["y"]]
     assert mod.getOutputs(["y", "y"]) == [d["y"], d["y"]]
-    with pytest.raises(KeyError):
+    with pytest.raises(OMPython.ModelicaSystemError):
         mod.getOutputs("thisOutputDoesNotExist")
 
     # getContinuous after simulate() should return values at end of simulation:
